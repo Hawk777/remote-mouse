@@ -1,0 +1,3 @@
+# WebSocket is the spelling of the protocol in the specification; it doesn’t
+# always refer to a type name.
+doc-valid-idents = ["WebSocket", ".."]

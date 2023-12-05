@@ -1,0 +1,52 @@
+[package]
+name = "remote-mouse"
+version = "0.1.0"
+authors = ["Christopher Head"]
+edition = "2021"
+description = "A WebSocket endpoint that receives mouse events and drives an X display."
+repository = "https://gitlab.com/Hawk777/remote-mouse"
+license = "GPL-3.0-only"
+keywords = ["control", "mobile", "mouse", "remote"]
+categories = ["web-programming::websocket"]
+
+[dependencies.anyhow]
+version = "^1.0.75"
+
+[dependencies.clap]
+features = ["derive", "wrap_help"]
+version = "^4.4.10"
+
+[dependencies.env_logger]
+default-features = false
+version = "^0.10.1"
+
+[dependencies.futures-util]
+default-features = false
+version = "^0.3.29"
+
+[dependencies.libc]
+version = "^0.2.150"
+
+[dependencies.log]
+features = ["std"]
+version = "^0.4.20"
+
+[dependencies.socket2]
+version = "^0.5.5"
+
+[dependencies.tokio]
+features = ["io-util", "macros", "net", "rt", "signal", "sync", "time"]
+version = "^1.34"
+
+[dependencies.tokio-tungstenite]
+default-features = false
+features = ["handshake"]
+version = "^0.20.1"
+
+[dependencies.tokio-util]
+features = ["codec", "net"]
+version = "^0.7.10"
+
+[dependencies.x11rb]
+features = ["xtest"]
+version = "^0.12"
