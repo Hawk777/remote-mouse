@@ -18,6 +18,9 @@ class Application {
 	// The text field in the working dialog box.
 	#workingText = document.getElementById("working-text");
 
+	// The progress bar in the working dialog box.
+	#workingProgress = this.#workingDialog.getElementsByTagName("progress")[0];
+
 	// The WebSocket URL.
 	#url = (() => {
 		const url = new URL("ws", document.URL);
@@ -107,6 +110,8 @@ class Application {
 		}
 		if(retry) {
 			setTimeout(this.#connect.bind(this), RECONNECT_TIME);
+		} else {
+			this.#workingProgress.hidden = true;
 		}
 	}
 
