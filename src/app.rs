@@ -12,10 +12,11 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpListener, UnixListener};
 use tokio::select;
 use tokio::signal::unix::Signal;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 use tokio_tungstenite::tungstenite;
 use tokio_util::net::Listener;
+use tokio_util::sync::CancellationToken;
 use tungstenite::protocol::frame::coding::CloseCode;
 use tungstenite::protocol::frame::CloseFrame;
 use tungstenite::Message;
@@ -109,13 +110,10 @@ impl TryFrom<[u8; MouseEvent::ENCODED_SIZE]> for MouseEvent {
 
 /// A future that waits until either a signal is received or shutdown is scheduled by another
 /// means, then returns `Ok(true)`.
-async fn monitor_signal(
-	mut signal: Signal,
-	mut shutdown: watch::Receiver<()>,
-) -> Result<bool, Error> {
+async fn monitor_signal(mut signal: Signal, cancel: CancellationToken) -> Result<bool, Error> {
 	select! {
 		_ = signal.recv() => (),
-		_ = shutdown.changed() => (),
+		_ = cancel.cancelled() => (),
 	};
 	Ok(true)
 }
@@ -124,7 +122,7 @@ async fn monitor_signal(
 /// scheduled, then returns `Ok(false)`.
 async fn monitor_listener<L: Listener>(
 	mut listener: L,
-	mut shutdown: watch::Receiver<()>,
+	cancel: CancellationToken,
 	join_set: SharedJoinSet,
 	event_sender: mpsc::UnboundedSender<MouseEvent>,
 	settings: Rc<Settings>,
@@ -135,11 +133,11 @@ where
 {
 	loop {
 		select! {
-			_ = shutdown.changed() => break,
+			_ = cancel.cancelled() => break,
 			result = listener.accept() => match result {
 				Ok((stream, addr)) => {
 					log::info!("Accepted connection from {addr:?}");
-					join_set.borrow_mut().spawn_local(monitor_stream(stream, shutdown.clone(), event_sender.clone(), settings.clone()));
+					join_set.borrow_mut().spawn_local(monitor_stream(stream, cancel.clone(), event_sender.clone(), settings.clone()));
 				}
 				Err(e) => if is_fatal(e.kind()) {
 					return Err(e.into());
@@ -237,7 +235,7 @@ impl tungstenite::handshake::server::Callback for TungsteniteCallback<'_> {
 /// handler task.
 async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 	stream: S,
-	mut shutdown: watch::Receiver<()>,
+	cancel: CancellationToken,
 	event_sender: mpsc::UnboundedSender<MouseEvent>,
 	settings: Rc<Settings>,
 ) -> Result<bool, Error> {
@@ -258,7 +256,7 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 		// Run the socket until closed or until a shutdown signal arrives.
 		let close_frame = loop {
 			select! {
-				_ = shutdown.changed() => {
+				_ = cancel.cancelled() => {
 					// A shutdown has been signalled.
 					break Some(CloseFrame {
 						code: CloseCode::Away,
@@ -522,10 +520,8 @@ pub async fn run(
 	// Pack up the settings behind an Rc so they can be reused by all the connection handlers.
 	let settings = Rc::new(Settings { origin, ping_time });
 
-	// Create a watch which will inform all subordinate tasks when it’s time to shut down. We don’t
-	// actually need to communicate any *data*, so make it a watch over unit and drop the sender
-	// (triggering receive errors) to communicate the event.
-	let (shutdown_sender, _) = watch::channel(());
+	// Create a cancellation token for use by all subordinate tasks.
+	let cancel = CancellationToken::new();
 
 	// Create an MPSC channel which will carry mouse events from the connection to the central
 	// event handler.
@@ -540,20 +536,21 @@ pub async fn run(
 		.spawn_local(handle_events(event_receiver, display_connection));
 
 	// Add tasks to watch for the termination signals. These tasks, and only these tasks, will
-	// return Ok(true), and will do so once they receive their signal or once told to via the watch.
+	// return Ok(true), and will do so once they receive their signal or once told to via the
+	// CancellationToken.
 	for i in signals {
 		join_set
 			.borrow_mut()
-			.spawn_local(monitor_signal(i, shutdown_sender.subscribe()));
+			.spawn_local(monitor_signal(i, cancel.clone()));
 	}
 
 	// Add tasks to accept connections from the listeners. These tasks will run until told to shut
-	// down (via the watch), then return Ok(false).
+	// down (via the CancellationToken), then return Ok(false).
 	for i in tcp_listeners {
 		let js = join_set.clone();
 		join_set.borrow_mut().spawn_local(monitor_listener(
 			i,
-			shutdown_sender.subscribe(),
+			cancel.clone(),
 			js,
 			event_sender.clone(),
 			settings.clone(),
@@ -563,7 +560,7 @@ pub async fn run(
 		let js = join_set.clone();
 		join_set.borrow_mut().spawn_local(monitor_listener(
 			i,
-			shutdown_sender.subscribe(),
+			cancel.clone(),
 			js,
 			event_sender.clone(),
 			settings.clone(),
@@ -608,7 +605,7 @@ pub async fn run(
 
 	// Tell all the tasks that they should shut down.
 	log::debug!("Starting shutdown");
-	drop(shutdown_sender);
+	cancel.cancel();
 
 	// Wait up to five seconds for all the tasks to terminate before aborting them.
 	let time_limit = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
