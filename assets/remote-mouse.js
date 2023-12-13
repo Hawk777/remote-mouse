@@ -42,6 +42,10 @@ class Application {
 	// The WebSocket.
 	#socket = null;
 
+	// Whether the socket is open (i.e. has received an “open” event and has
+	// not received a “close” event).
+	#open = false;
+
 	// Starts the application.
 	constructor() {
 		// Hook up the input event handlers.
@@ -70,6 +74,9 @@ class Application {
 
 	// Handles the socket being closed.
 	#socketClosed(e) {
+		// Record the closure.
+		this.#open = false;
+
 		// Report the situation.
 		this.#workingText.replaceChildren(`Connection closed: ${e.code} ${e.reason}. Reload page to retry.`);
 		if(!this.#workingDialog.open) {
@@ -103,10 +110,14 @@ class Application {
 	#socketMessage(e) {
 		// The server should never send us data.
 		this.#socket.close(4000, "No messages expected.");
+		this.#open = false;
 	}
 
 	// Handles the socket finishing opening.
 	#socketOpen(e) {
+		// Remember that we are open.
+		this.#open = true;
+
 		// Discard any accumulated delta and close the dialog box, letting the
 		// user use the application.
 		this.#delta[0] = 0;
@@ -194,12 +205,14 @@ class Application {
 
 	// Packs and sends a message, given its opcode and two parameters.
 	#sendPacket(opcode, param1, param2) {
-		const buffer = new ArrayBuffer(6, {maxByteLength: 6});
-		const view = new DataView(buffer);
-		view.setUint16(0, opcode);
-		view.setInt16(2, param1);
-		view.setInt16(4, param2);
-		this.#socket.send(buffer);
+		if(this.#open) {
+			const buffer = new ArrayBuffer(6, {maxByteLength: 6});
+			const view = new DataView(buffer);
+			view.setUint16(0, opcode);
+			view.setInt16(2, param1);
+			view.setInt16(4, param2);
+			this.#socket.send(buffer);
+		}
 	}
 }
 
