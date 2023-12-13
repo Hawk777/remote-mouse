@@ -85,6 +85,7 @@ class Application {
 
 		// Close the socket in the other direction.
 		this.#socket.close();
+		let retry = false;
 		switch(e.code) {
 			case 1001: // Going Away
 				this.#workingText.replaceChildren("Server offline. Reload page to retry.");
@@ -96,13 +97,16 @@ class Application {
 
 			case 1012: // Service Restart
 				this.#workingText.replaceChildren("Server restarting. Retrying.");
-				setTimeout(this.#connect.bind(this), RECONNECT_TIME);
+				retry = true;
 				break;
 
 			case 1013: // Try Again Later
 				this.#workingText.replaceChildren("Server overloaded. Retrying.");
-				setTimeout(this.#connect.bind(this), RECONNECT_TIME);
+				retry = true;
 				break;
+		}
+		if(retry) {
+			setTimeout(this.#connect.bind(this), RECONNECT_TIME);
 		}
 	}
 
