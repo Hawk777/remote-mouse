@@ -81,7 +81,7 @@ class Application {
 		this.#open = false;
 
 		// Report the situation.
-		this.#workingText.replaceChildren(`Connection closed: ${e.code} ${e.reason}. Reload page to retry.`);
+		this.#workingText.replaceChildren(`Connection closed: ${e.code} ${e.reason}.`);
 		if(!this.#workingDialog.open) {
 			this.#workingDialog.showModal();
 		}
@@ -91,26 +91,28 @@ class Application {
 		let retry = false;
 		switch(e.code) {
 			case 1001: // Going Away
-				this.#workingText.replaceChildren("Server offline. Reload page to retry.");
+				this.#workingText.replaceChildren("Server offline.");
 				break;
 
 			case 1006: // Abnormal Closure
-				this.#workingText.replaceChildren("Abnormal socket closure. Reload page to retry.");
+				this.#workingText.replaceChildren("Abnormal socket closure.");
 				break;
 
 			case 1012: // Service Restart
-				this.#workingText.replaceChildren("Server restarting. Retrying.");
+				this.#workingText.replaceChildren("Server restarting.");
 				retry = true;
 				break;
 
 			case 1013: // Try Again Later
-				this.#workingText.replaceChildren("Server overloaded. Retrying.");
+				this.#workingText.replaceChildren("Server overloaded.");
 				retry = true;
 				break;
 		}
 		if(retry) {
+			this.#workingText.append(" Retrying.");
 			setTimeout(this.#connect.bind(this), RECONNECT_TIME);
 		} else {
+			this.#workingText.append(" Reload page to retry.");
 			this.#workingProgress.hidden = true;
 		}
 	}
