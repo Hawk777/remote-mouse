@@ -232,7 +232,8 @@ impl tungstenite::handshake::server::Callback for TungsteniteCallback<'_> {
 }
 
 /// A future that communicates over a WebSocket connection and sends decoded events to the event
-/// handler task.
+/// handler task, until either the peer closes the socket or a shutdown is scheduled, then returns
+/// `Ok(false)`.
 async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 	stream: S,
 	cancel: CancellationToken,
