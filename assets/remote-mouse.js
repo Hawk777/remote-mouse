@@ -4,7 +4,7 @@ const POLL_TIME = 10;
 
 // How long to wait after an error that permits reconnecting before trying to
 // reconnect.
-const RECONNECT_TIME = 5000;
+const RECONNECT_TIME = 1000;
 
 // The name of the subprotocol.
 const SUBPROTOCOL = "ca.chead.remote-mouse.packets";
