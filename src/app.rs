@@ -57,7 +57,7 @@ impl<T: 'static> Future for JoinSetPoller<'_, T> {
 }
 
 /// A [`JoinSet`](JoinSet) for tasks which is shared among the tasks.
-type SharedJoinSet = Rc<RefCell<JoinSet<Result<bool, Error>>>>;
+type SharedJoinSet = Rc<RefCell<JoinSet<Result<(), Error>>>>;
 
 /// Checks whether a given error kind is fatal or not.
 ///
@@ -109,24 +109,24 @@ impl TryFrom<[u8; MouseEvent::ENCODED_SIZE]> for MouseEvent {
 }
 
 /// A future that waits until either a signal is received or shutdown is scheduled by another
-/// means, then returns `Ok(true)`.
-async fn monitor_signal(mut signal: Signal, cancel: CancellationToken) -> Result<bool, Error> {
+/// means, then returns `Ok(())`.
+async fn monitor_signal(mut signal: Signal, cancel: CancellationToken) -> Result<(), Error> {
 	select! {
-		_ = signal.recv() => (),
+		_ = signal.recv() => cancel.cancel(),
 		_ = cancel.cancelled() => (),
 	};
-	Ok(true)
+	Ok(())
 }
 
 /// A future that accepts incoming connections and dispatches them for handling until shutdown is
-/// scheduled, then returns `Ok(false)`.
+/// scheduled, then returns `Ok(())`.
 async fn monitor_listener<L: Listener>(
 	mut listener: L,
 	cancel: CancellationToken,
 	join_set: SharedJoinSet,
 	event_sender: mpsc::UnboundedSender<MouseEvent>,
 	settings: Rc<Settings>,
-) -> Result<bool, Error>
+) -> Result<(), Error>
 where
 	L::Addr: std::fmt::Debug,
 	L::Io: 'static + Unpin,
@@ -147,7 +147,7 @@ where
 			}
 		}
 	}
-	Ok(false)
+	Ok(())
 }
 
 /// The configuration for WebSocket connections.
@@ -233,13 +233,13 @@ impl tungstenite::handshake::server::Callback for TungsteniteCallback<'_> {
 
 /// A future that communicates over a WebSocket connection and sends decoded events to the event
 /// handler task, until either the peer closes the socket or a shutdown is scheduled, then returns
-/// `Ok(false)`.
+/// `Ok(())`.
 async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 	stream: S,
 	cancel: CancellationToken,
 	event_sender: mpsc::UnboundedSender<MouseEvent>,
 	settings: Rc<Settings>,
-) -> Result<bool, Error> {
+) -> Result<(), Error> {
 	use tungstenite::error::Error;
 
 	let inner = async move {
@@ -347,7 +347,7 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 	};
 
 	match inner.await {
-		Ok(()) => Ok(false),
+		Ok(()) => Ok(()),
 		Err(e) => match e {
 			tungstenite::error::Error::AlreadyClosed => Err(e.into()),
 			tungstenite::error::Error::Io(ref io_error) if is_fatal(io_error.kind()) => {
@@ -355,7 +355,7 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 			}
 			_ => {
 				log::error!("Error in connection: {e}");
-				Ok(false)
+				Ok(())
 			}
 		},
 	}
@@ -487,11 +487,11 @@ impl EventHandler {
 /// A future that receives mouse events from an MPSC channel and executes them on a display
 /// connection.
 ///
-/// This future returns `Ok(false)` when the MPSC channel is closed.
+/// This future returns `Ok(())` when the MPSC channel is closed.
 async fn handle_events(
 	mut receiver: mpsc::UnboundedReceiver<MouseEvent>,
 	display_connection: display::Connection,
-) -> Result<bool, Error> {
+) -> Result<(), Error> {
 	let mut handler = EventHandler::new(display_connection);
 	while let Some(event) = receiver.recv().await {
 		// Handle this event.
@@ -506,7 +506,7 @@ async fn handle_events(
 		// delaying motion indefinitely, flush it before sleeping.
 		handler.flush()?;
 	}
-	Ok(false)
+	Ok(())
 }
 
 /// Runs the application once all basic resources have been obtained.
@@ -529,7 +529,7 @@ pub async fn run(
 	let (event_sender, event_receiver) = mpsc::unbounded_channel::<MouseEvent>();
 
 	// Create a join set to contain subordinate tasks.
-	let join_set = Rc::new(RefCell::new(JoinSet::<Result<bool, Error>>::new()));
+	let join_set = Rc::new(RefCell::new(JoinSet::<Result<(), Error>>::new()));
 
 	// Add a task to handle events.
 	join_set
@@ -577,44 +577,39 @@ pub async fn run(
 	// logged within the task and either do not result in termination or result in an Ok return
 	// value).
 	loop {
-		match JoinSetPoller::new(&join_set).await {
-			Some(Ok(Ok(true))) => {
-				// It’s time to shut down. Break out of the loop and continue with a graceful
-				// cleanup.
-				break;
-			}
-			Some(Ok(Ok(false))) => {
-				// A task terminated normally, but did not indicate that shutdown is starting.
-			}
-			Some(Ok(Err(e))) => {
-				// A task terminated and returned Err(e). Tasks should only return Err in case of
-				// fatal problems. Abort as quickly as possible.
-				return Err(e);
-			}
-			Some(Err(e)) => {
-				// A task panicked or was cancelled. Abort as quickly as possible.
-				return Err(e.into());
-			}
-			None => {
-				// There are no tasks left alive. This should never happen, because the signal
-				// tasks should only ever terminate by returning Ok(true), at which point we should
-				// break out of this loop before reaching this point.
-				panic!("JoinSet became unexpectedly empty");
+		select! {
+			_ = cancel.cancelled() => break,
+			result = JoinSetPoller::new(&join_set) => match result {
+				Some(Ok(Ok(()))) => {
+					// A task terminated normally.
+				}
+				Some(Ok(Err(e))) => {
+					// A task terminated and returned Err(e). Tasks should only return Err in case
+					// of fatal problems. Abort as quickly as possible.
+					return Err(e);
+				}
+				Some(Err(e)) => {
+					// A task panicked or was cancelled. Abort as quickly as possible.
+					return Err(e.into());
+				}
+				None => {
+					// There are no tasks left alive. This should never happen, because the signal
+					// tasks should only ever terminate by returning Ok(true), at which point we
+					// should break out of this loop before reaching this point.
+					panic!("JoinSet became unexpectedly empty");
+				}
 			}
 		}
 	}
 
-	// Tell all the tasks that they should shut down.
-	log::debug!("Starting shutdown");
-	cancel.cancel();
-
 	// Wait up to five seconds for all the tasks to terminate before aborting them.
+	log::debug!("Shutting down");
 	let time_limit = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
 	loop {
 		select! {
 			result = JoinSetPoller::new(&join_set) => {
 				match result {
-					Some(Ok(Ok(_))) => {
+					Some(Ok(Ok(()))) => {
 						// A task terminated normally.
 					}
 					Some(Ok(Err(e))) => {
