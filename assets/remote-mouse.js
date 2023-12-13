@@ -78,6 +78,7 @@ class Application {
 	// Handles the socket being closed.
 	#socketClosed(e) {
 		// Record the closure.
+		const wasOpen = this.#open;
 		this.#open = false;
 
 		// Report the situation.
@@ -96,6 +97,20 @@ class Application {
 
 			case 1006: // Abnormal Closure
 				this.#workingText.replaceChildren("Abnormal socket closure.");
+				// This can happen during the connection attempt (i.e. before
+				// “open”) if there is a problem with the handshake, in which
+				// case the error is non-retryable. However, at least on
+				// Firefox for Android, it can also happen if the browser is
+				// suspended (e.g. due to a locked screen), in which case that
+				// will typically happen after the connection is open and
+				// should be retryable. A legitimate server will never
+				// intentionally close the connection this way (it should send
+				// a proper close frame instead), so an abnormal closure
+				// post-open must indicate either the aforementioned
+				// browser-side closure or else a catastrophic problem with the
+				// server; in the latter case, we’ll try another connection
+				// which will fail pre-open and then we’ll stop retrying.
+				retry = wasOpen;
 				break;
 
 			case 1012: // Service Restart
