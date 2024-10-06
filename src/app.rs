@@ -113,7 +113,7 @@ impl TryFrom<[u8; MouseEvent::ENCODED_SIZE]> for MouseEvent {
 async fn monitor_signal(mut signal: Signal, cancel: CancellationToken) -> Result<(), Error> {
 	select! {
 		_ = signal.recv() => cancel.cancel(),
-		_ = cancel.cancelled() => (),
+		() = cancel.cancelled() => (),
 	};
 	Ok(())
 }
@@ -133,7 +133,7 @@ where
 {
 	loop {
 		select! {
-			_ = cancel.cancelled() => break,
+			() = cancel.cancelled() => break,
 			result = listener.accept() => match result {
 				Ok((stream, addr)) => {
 					log::info!("Accepted connection from {addr:?}");
@@ -257,14 +257,14 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 		// Run the socket until closed or until a shutdown signal arrives.
 		let close_frame = loop {
 			select! {
-				_ = cancel.cancelled() => {
+				() = cancel.cancelled() => {
 					// A shutdown has been signalled.
 					break Some(CloseFrame {
 						code: CloseCode::Away,
 						reason: Cow::Borrowed("Server shutting down"),
 					});
 				}
-				_ = tokio::time::sleep(settings.ping_time), if settings.ping_time != Duration::ZERO => {
+				() = tokio::time::sleep(settings.ping_time), if settings.ping_time != Duration::ZERO => {
 					// A while has passed since anything was received. Send a ping, which will
 					// provoke a pong, to ensure that no intermediaries time out the connection.
 					socket.send(Message::Ping(Vec::new())).await?;
@@ -578,7 +578,7 @@ pub async fn run(
 	// value).
 	loop {
 		select! {
-			_ = cancel.cancelled() => break,
+			() = cancel.cancelled() => break,
 			result = JoinSetPoller::new(&join_set) => match result {
 				Some(Ok(Ok(()))) => {
 					// A task terminated normally.
