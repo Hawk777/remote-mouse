@@ -232,7 +232,7 @@ class Application {
 	// Packs and sends a message, given its opcode and two parameters.
 	#sendPacket(opcode, param1, param2) {
 		if(this.#open) {
-			const buffer = new ArrayBuffer(6, {maxByteLength: 6});
+			const buffer = new ArrayBuffer(6);
 			const view = new DataView(buffer);
 			view.setUint16(0, opcode);
 			view.setInt16(2, param1);
