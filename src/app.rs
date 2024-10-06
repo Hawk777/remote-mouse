@@ -31,8 +31,8 @@ struct Settings {
 	pub ping_time: Duration,
 }
 
-/// A future which polls a [`JoinSet`](JoinSet) which is held behind an [`Rc`](Rc) of a
-/// [`RefCell`](RefCell), without holding a borrow of the `Rc` across a yield point.
+/// A future which polls a [`JoinSet`] which is held behind an [`Rc`] of a [`RefCell`], without
+/// holding a borrow of the `Rc` across a yield point.
 ///
 /// The lifetime `'a` is the lifetime of the `Rc` that is borrowed (to avoid excessive reference
 /// count manipulation) by this value.
@@ -56,7 +56,7 @@ impl<T: 'static> Future for JoinSetPoller<'_, T> {
 	}
 }
 
-/// A [`JoinSet`](JoinSet) for tasks which is shared among the tasks.
+/// A [`JoinSet`] for tasks which is shared among the tasks.
 type SharedJoinSet = Rc<RefCell<JoinSet<Result<(), Error>>>>;
 
 /// Checks whether a given error kind is fatal or not.
@@ -364,9 +364,9 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 /// Handles a single message received on a stream.
 ///
 /// Returns [`Continue`](ControlFlow::Continue) if the loop should continue and receive another
-/// message, [`Break`](ControlFlow::Break) with the [`CloseFrame`](CloseFrame) to reply with (or
-/// `None` to not send a [`CloseFrame`](CloseFrame)) if the socket should shut down, or `Err` in
-/// the event of a fatal application-wide error.
+/// message, [`Break`](ControlFlow::Break) with the [`CloseFrame`] to reply with (or `None` to not
+/// send a [`CloseFrame`]) if the socket should shut down, or `Err` in the event of a fatal
+/// application-wide error.
 fn handle_message(
 	message: &Message,
 	event_sender: &mpsc::UnboundedSender<MouseEvent>,
