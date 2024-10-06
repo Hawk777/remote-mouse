@@ -18,7 +18,7 @@ version = "^4.4.10"
 
 [dependencies.env_logger]
 default-features = false
-version = "^0.10.1"
+version = "^0.11.0"
 
 [dependencies.futures-util]
 default-features = false
@@ -41,7 +41,7 @@ version = "^1.34"
 [dependencies.tokio-tungstenite]
 default-features = false
 features = ["handshake"]
-version = "^0.20.1"
+version = "^0.24.0"
 
 [dependencies.tokio-util]
 features = ["codec", "net"]
@@ -49,4 +49,4 @@ version = "^0.7.10"
 
 [dependencies.x11rb]
 features = ["xtest"]
-version = "^0.12"
+version = "^0.13.1"
