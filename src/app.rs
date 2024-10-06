@@ -349,8 +349,8 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 	match inner.await {
 		Ok(()) => Ok(()),
 		Err(e) => match e {
-			tungstenite::error::Error::AlreadyClosed => Err(e.into()),
-			tungstenite::error::Error::Io(ref io_error) if is_fatal(io_error.kind()) => {
+			Error::AlreadyClosed => Err(e.into()),
+			Error::Io(ref io_error) if is_fatal(io_error.kind()) => {
 				Err(e.into())
 			}
 			_ => {
@@ -604,7 +604,7 @@ pub async fn run(
 
 	// Wait up to five seconds for all the tasks to terminate before aborting them.
 	log::debug!("Shutting down");
-	let time_limit = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+	let time_limit = tokio::time::Instant::now() + Duration::from_secs(5);
 	loop {
 		select! {
 			result = JoinSetPoller::new(&join_set) => {
