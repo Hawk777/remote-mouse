@@ -207,7 +207,10 @@ impl tungstenite::handshake::server::Callback for TungsteniteCallback<'_> {
 
 		let protocol = request.headers().get(header::SEC_WEBSOCKET_PROTOCOL);
 		let Some(protocol) = protocol else {
-			return Err(make_rejection(StatusCode::BAD_REQUEST, "Subprotocol not specified"));
+			return Err(make_rejection(
+				StatusCode::BAD_REQUEST,
+				"Subprotocol not specified",
+			));
 		};
 		if protocol != SUBPROTOCOL {
 			return Err(make_rejection(
@@ -219,7 +222,10 @@ impl tungstenite::handshake::server::Callback for TungsteniteCallback<'_> {
 		if !allowed_origins.is_empty() {
 			let origin = request.headers().get(header::ORIGIN);
 			let Some(origin) = origin else {
-				return Err(make_rejection(StatusCode::BAD_REQUEST, "Origin not specified"));
+				return Err(make_rejection(
+					StatusCode::BAD_REQUEST,
+					"Origin not specified",
+				));
 			};
 			if !allowed_origins.iter().any(|i| i == origin) {
 				return Err(make_rejection(
@@ -355,9 +361,7 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 		Ok(()) => Ok(()),
 		Err(e) => match e {
 			Error::AlreadyClosed => Err(e.into()),
-			Error::Io(ref io_error) if is_fatal(io_error.kind()) => {
-				Err(e.into())
-			}
+			Error::Io(ref io_error) if is_fatal(io_error.kind()) => Err(e.into()),
 			_ => {
 				log::error!("Error in connection: {e}");
 				Ok(())
