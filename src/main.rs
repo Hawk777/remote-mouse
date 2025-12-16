@@ -259,7 +259,7 @@ fn main() -> Result<(), anyhow::Error> {
 		// Turn it back into a raw FD so that dropping the Socket object won’t close it. Don’t do
 		// anything with the result; we will discover again it by iteration later when we’re ready
 		// to actually create listeners.
-		socket.into_raw_fd();
+		let _ = socket.into_raw_fd();
 	}
 
 	// Parse command line parameters. If no sockets were passed, then at least one listen address
