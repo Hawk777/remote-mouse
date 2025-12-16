@@ -1,7 +1,6 @@
 use super::display;
 use anyhow::Error;
 use futures_util::{SinkExt, StreamExt};
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::future::Future;
 use std::ops::ControlFlow;
@@ -19,7 +18,7 @@ use tokio_util::net::Listener;
 use tokio_util::sync::CancellationToken;
 use tungstenite::protocol::frame::coding::CloseCode;
 use tungstenite::protocol::frame::CloseFrame;
-use tungstenite::Message;
+use tungstenite::{Message, Utf8Bytes};
 
 /// Settings that are used by connections.
 #[derive(Debug, Eq, Hash, PartialEq)]
@@ -150,24 +149,6 @@ where
 	Ok(())
 }
 
-/// The configuration for WebSocket connections.
-#[allow(
-	deprecated,
-	reason = "
-	max_send_queue is deprecated but there is no alternative; we must provide some value, and
-	Default::default() is non-const!
-	"
-)]
-const WEBSOCKET_CONFIG: tungstenite::protocol::WebSocketConfig =
-	tungstenite::protocol::WebSocketConfig {
-		max_send_queue: None,
-		write_buffer_size: 0,
-		max_write_buffer_size: 64,
-		max_message_size: Some(MouseEvent::ENCODED_SIZE),
-		max_frame_size: Some(MouseEvent::ENCODED_SIZE),
-		accept_unmasked_frames: false,
-	};
-
 /// Constructs a Tungstenite rejection response with a plain-text body.
 fn make_rejection(
 	status: tungstenite::http::status::StatusCode,
@@ -255,12 +236,18 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
 	let inner = async move {
 		// Do the handshake.
+		let config = tungstenite::protocol::WebSocketConfig::default()
+			.write_buffer_size(0)
+			.max_write_buffer_size(64)
+			.max_message_size(Some(MouseEvent::ENCODED_SIZE))
+			.max_frame_size(Some(MouseEvent::ENCODED_SIZE))
+			.accept_unmasked_frames(false);
 		let mut socket = tokio_tungstenite::accept_hdr_async_with_config(
 			stream,
 			TungsteniteCallback {
 				settings: &settings,
 			},
-			Some(WEBSOCKET_CONFIG),
+			Some(config),
 		)
 		.await?;
 		log::trace!("Handshake complete");
@@ -272,13 +259,13 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 					// A shutdown has been signalled.
 					break Some(CloseFrame {
 						code: CloseCode::Away,
-						reason: Cow::Borrowed("Server shutting down"),
+						reason: Utf8Bytes::from_static("Server shutting down"),
 					});
 				}
 				() = tokio::time::sleep(settings.ping_time), if settings.ping_time != Duration::ZERO => {
 					// A while has passed since anything was received. Send a ping, which will
 					// provoke a pong, to ensure that no intermediaries time out the connection.
-					socket.send(Message::Ping(Vec::new())).await?;
+					socket.send(Message::Ping(tungstenite::Bytes::new())).await?;
 				}
 				message = socket.next() => match message {
 					None => {
@@ -304,20 +291,20 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 							Error::Io(_) | Error::WriteBufferFull(_) | Error::AttackAttempt => return Err(e),
 							Error::Capacity(e) => Some(CloseFrame {
 								code: CloseCode::Size,
-								reason: Cow::Owned(format!("{e}")),
+								reason: format!("{e}").into(),
 							}),
 							Error::Protocol(tungstenite::error::ProtocolError::ResetWithoutClosingHandshake) => None,
 							Error::Protocol(e) => Some(CloseFrame {
 								code: CloseCode::Protocol,
-								reason: Cow::Owned(format!("{e}")),
+								reason: format!("{e}").into(),
 							}),
-							Error::Utf8 => Some(CloseFrame {
+							Error::Utf8(e) => Some(CloseFrame {
 								code: CloseCode::Invalid,
-								reason: Cow::Borrowed("Invalid UTF-8"),
+								reason: format!("Invalid UTF-8: {e}").into(),
 							}),
 							Error::HttpFormat(e) => Some(CloseFrame {
 								code: CloseCode::Protocol,
-								reason: Cow::Owned(format!("{e}")),
+								reason: format!("{e}").into(),
 							}),
 						}
 					}
@@ -344,6 +331,7 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 			// wrong.
 			if let Message::Binary(data) = message {
 				// Check if the message is the right length.
+				let data: &[u8] = &data;
 				if let Ok(data) = <[u8; MouseEvent::ENCODED_SIZE]>::try_from(data) {
 					// The message is the right length. Try to decode it.
 					if let Ok(data) = MouseEvent::try_from(data) {
@@ -379,7 +367,7 @@ async fn monitor_stream<S: AsyncRead + AsyncWrite + Unpin>(
 fn handle_message(
 	message: &Message,
 	event_sender: &mpsc::UnboundedSender<MouseEvent>,
-) -> ControlFlow<Option<CloseFrame<'static>>, ()> {
+) -> ControlFlow<Option<CloseFrame>, ()> {
 	// A message was received, an error occurred, or the connection was closed.
 	log::trace!("Socket read returned {message:?}");
 	match message {
@@ -387,13 +375,14 @@ fn handle_message(
 			// Text frames are not supported.
 			ControlFlow::Break(Some(CloseFrame {
 				code: CloseCode::Unsupported,
-				reason: Cow::Borrowed("Text frames not supported"),
+				reason: Utf8Bytes::from_static("Text frames not supported"),
 			}))
 		}
 		Message::Binary(data) => {
 			// Check if the message is the right length.
+			let data: &[u8] = data;
 			let data_len = data.len();
-			if let Ok(data) = <[u8; MouseEvent::ENCODED_SIZE]>::try_from(data.as_slice()) {
+			if let Ok(data) = <[u8; MouseEvent::ENCODED_SIZE]>::try_from(data) {
 				// The message is the right length. Try to decode it.
 				match MouseEvent::try_from(data) {
 					Ok(data) => {
@@ -405,7 +394,7 @@ fn handle_message(
 						// The message is erroneous.
 						ControlFlow::Break(Some(CloseFrame {
 							code: CloseCode::Protocol,
-							reason: Cow::Owned(format!("Undecodable event packet: {e}")),
+							reason: format!("Undecodable event packet: {e}").into(),
 						}))
 					}
 				}
@@ -413,7 +402,7 @@ fn handle_message(
 				// The message is the wrong length.
 				ControlFlow::Break(Some(CloseFrame {
 					code: CloseCode::Protocol,
-					reason: Cow::Owned(format!("Wrong-sized ({data_len}) binary frame")),
+					reason: format!("Wrong-sized ({data_len}) binary frame").into(),
 				}))
 			}
 		}

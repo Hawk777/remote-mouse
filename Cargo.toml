@@ -41,7 +41,7 @@ version = "^1.34"
 [dependencies.tokio-tungstenite]
 default-features = false
 features = ["handshake"]
-version = "^0.24.0"
+version = "^0.28.0"
 
 [dependencies.tokio-util]
 features = ["codec", "net"]
