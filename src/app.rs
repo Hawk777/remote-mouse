@@ -151,8 +151,13 @@ where
 }
 
 /// The configuration for WebSocket connections.
-#[allow(deprecated)] // max_send_queue is deprecated but there is no alternative; we must provide
-					 // some value, and Default::default() is non-const!
+#[allow(
+	deprecated,
+	reason = "
+	max_send_queue is deprecated but there is no alternative; we must provide some value, and
+	Default::default() is non-const!
+	"
+)]
 const WEBSOCKET_CONFIG: tungstenite::protocol::WebSocketConfig =
 	tungstenite::protocol::WebSocketConfig {
 		max_send_queue: None,
