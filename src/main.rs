@@ -106,7 +106,7 @@ struct Args {
 	#[arg(long)]
 	listen_unix: Vec<PathBuf>,
 
-	/// A permitted origin (typically of the form “https://hostname”, the location where the HTML
+	/// A permitted origin (typically of the form `https://hostname`, the location where the HTML
 	/// document that accesses the WebSocket connection is hosted) for incoming connections
 	/// [default: accept from any origin].
 	#[arg(long)]
