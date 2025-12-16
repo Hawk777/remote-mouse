@@ -52,23 +52,38 @@ features = ["xtest"]
 version = "^0.13.1"
 
 [lints.clippy]
+allow-attributes-without-reason = { level = "warn", priority = 1 }
 cargo = "warn"
+cast-precision-loss = { level = "allow", priority = 1 }
+multiple-crate-versions = { level = "allow", priority = 1 }
 pedantic = "warn"
+# log macro logging should be used instead.
+print-stderr = { level = "deny", priority = 1 }
+print-stdout = { level = "deny", priority = 1 }
 tabs-in-doc-comments = { level = "allow", priority = 1 }  # Nope, tabs thanks.
 
 [lints.rust]
 future-incompatible = "warn"
+macro-use-extern-crate = "warn"
+meta-variable-misuse = "warn"
 missing-abi = "warn"
+missing-copy-implementations = "warn"
+missing-docs = "warn"
+non-local-definitions = "warn"
 nonstandard-style = "warn"
+redundant-lifetimes = "warn"
 rust-2018-idioms = "warn"
 single-use-lifetimes = "warn"
 trivial-casts = "warn"
 trivial-numeric-casts = "warn"
+unit-bindings = "warn"
+unsafe-op-in-unsafe-fn = "warn"
 unused = "warn"
 unused-crate-dependencies = "warn"
 unused-import-braces = "warn"
 unused-lifetimes = "warn"
 unused-qualifications = "warn"
+warnings = "warn"
 
 [lints.rustdoc]
 all = "warn"
