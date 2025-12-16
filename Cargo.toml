@@ -50,3 +50,25 @@ version = "^0.7.10"
 [dependencies.x11rb]
 features = ["xtest"]
 version = "^0.13.1"
+
+[lints.clippy]
+cargo = "warn"
+pedantic = "warn"
+tabs-in-doc-comments = { level = "allow", priority = 1 }  # Nope, tabs thanks.
+
+[lints.rust]
+future-incompatible = "warn"
+missing-abi = "warn"
+nonstandard-style = "warn"
+rust-2018-idioms = "warn"
+single-use-lifetimes = "warn"
+trivial-casts = "warn"
+trivial-numeric-casts = "warn"
+unused = "warn"
+unused-crate-dependencies = "warn"
+unused-import-braces = "warn"
+unused-lifetimes = "warn"
+unused-qualifications = "warn"
+
+[lints.rustdoc]
+all = "warn"

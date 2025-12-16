@@ -2,31 +2,6 @@
 //! as a basic web page that connects to the WebSocket endpoint and passes input gestures from the
 //! browser to the endpoint allowing remote control of the mouse on the X11 server.
 
-#![warn(
-	// Turn on extra language lints.
-	future_incompatible,
-	missing_abi,
-	nonstandard_style,
-	rust_2018_idioms,
-	single_use_lifetimes,
-	trivial_casts,
-	trivial_numeric_casts,
-	unused,
-	unused_crate_dependencies,
-	unused_import_braces,
-	unused_lifetimes,
-	unused_qualifications,
-
-	// Turn on extra Rustdoc lints.
-	rustdoc::all,
-
-	// Turn on extra Clippy lints.
-	clippy::cargo,
-	clippy::pedantic,
-)]
-// Nope, tabs thanks.
-#![allow(clippy::tabs_in_doc_comments)]
-
 mod app;
 mod display;
 mod systemd;
