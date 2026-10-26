@@ -1,3 +1,16 @@
+Archival notice
+===============
+
+Remote-Mouse is no longer maintained. My original need for it no longer exists.
+Also, it seems that Wayland is likely to take over the Linux desktop in the
+near future, and while apparently XWayland does support the XTest extension
+(which is what Remote-Mouse uses), various sources suggest the implementation
+is a rather complicated hack and the user experience is poor—a rewrite with
+either uinput or something Wayland-specific or desktop-environment-specific
+would probably be a better choice. Given that I don’t need the project any
+more, it’s unlikely I will ever do such a rewrite.
+
+
 Overview
 ========
 
